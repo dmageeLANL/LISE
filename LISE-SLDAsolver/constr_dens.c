@@ -1,5 +1,5 @@
-// for license information, see the accompanying LICENSE file
-
+/* 
+ */
 
 #include "vars_nuclear.h"
 
@@ -1151,5 +1151,53 @@ double distMass( double * rho_p, double * rho_n, double n, double z0 , double * 
   }
   printf("Mass1=%f Mass2=%f\n",sum1_*dxyz,sum2_*dxyz);
   return( sum2/sum2_+sum1/sum1_ );
+
+}
+
+double compute_particle_number( double complex * z , const int nxyz , const int ip , const MPI_Comm comm , const int m_ip , const int n_iq , const int i_p , const int i_q , const int mb , const int nb , const int p_proc , const int q_proc )
+
+{
+
+  /*                                                                                                                                                                          
+  Computes the particle, anomalous and current densities from the eigenvectors z                                                                                          
+  */
+
+  int n , nhalf , iwork ;
+
+  int i , j , li , lj , ii , jj ;
+
+  int nstart , nstop ;
+
+  double num_part , num_part_all ;
+
+  nhalf = 2 * nxyz ;
+
+  num_part = 0.0 ;
+
+  for( lj = 0 ; lj < n_iq ; lj++ ){
+
+    j =  i_q * nb + ( lj / nb ) * q_proc * nb + lj % nb ;
+
+    if( j < nhalf )
+
+      continue;
+
+    jj = j - nhalf;
+
+    for( li = 0 ; li < m_ip ; li++ ) {
+
+      ii = i_p * mb + ( li / mb ) * p_proc * mb + li % mb ;
+
+      if( ii >= nhalf)
+	num_part += creal( conj( z[ lj * m_ip + li ] ) * z[ lj * m_ip + li ] ) ;
+
+    }
+
+
+  }
+
+  MPI_Allreduce( &num_part , &num_part_all , 1 , MPI_DOUBLE , MPI_SUM , comm ) ;
+
+  return num_part_all;
 
 }

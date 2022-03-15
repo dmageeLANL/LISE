@@ -1,5 +1,3 @@
-// for license information, see the accompanying LICENSE file
-
 /* includes all the routines necessary to construct the Hamiltonian */
 
 #include <stdlib.h>

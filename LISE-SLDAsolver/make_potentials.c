@@ -1,5 +1,3 @@
-// for license information, see the accompanying LICENSE file
-
 #include <stdlib.h>
 
 #include <stdio.h>
@@ -38,7 +36,7 @@ void filter_hm_r( double * , const int , FFtransf_vars * ) ;
 
 double center_dist( double * , const int , Lattice_arrays * , double * , double * , double * ) ;
 
-int dens_func_params( const int iforce , const int ihfb , const int isospin , Couplings * cc_edf , const int ip ,int icub, double alpha_pairing)
+int dens_func_params( const int iforce , const int ihfb , const int isospin , Couplings * cc_edf , const int ip ,int icub, double t0_, double b0_)
 
 {
 
@@ -99,9 +97,8 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
   c2 = 0.0 ;
   
   eta_s = 0.0 ;
- 
-  cc_edf->rhoc = 6.25*alpha_pairing; // alpha_pairing/0.16;  
- 
+  
+  
   cc_edf->gg = 0.0 ;
 
   cc_edf->gg_p = cc_edf->gg;
@@ -115,7 +112,7 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
   /* no force */
   if( iforce == 0 )	
     {
-      sprintf( edf_name , "no interaction" ) ;
+      sprintf( edf_name , "no intertion" ) ;
     }
   
   
@@ -157,6 +154,8 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
 
       cc_edf->gg_n = cc_edf->gg;
 
+      cc_edf->rhoc = 0.;
+
     }
   /*   SLy4 force */
 
@@ -192,6 +191,8 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
 
       cc_edf->gg_n = cc_edf->gg;
 
+      cc_edf->rhoc=1./.32;
+
     }
   /*   SLy4 force */
 
@@ -222,10 +223,12 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
       w0    =  123.0 ;
 
       cc_edf->gg = -690. ; 
-
+    
       cc_edf->gg_p = cc_edf->gg;
 
       cc_edf->gg_n = cc_edf->gg;
+
+      cc_edf->rhoc=1./.16;
 
     }
 
@@ -259,10 +262,12 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
       w0    =  123.0 ;
 
       cc_edf->gg = -480. ; 
-
+    
       cc_edf->gg_p = cc_edf->gg;
 
       cc_edf->gg_n = cc_edf->gg;
+
+      cc_edf->rhoc=.75/.16;
 
     }
 
@@ -300,17 +305,21 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
 
       cc_edf->gg_n = cc_edf->gg;
 
+      cc_edf->rhoc = 0.;
+
     }
 
   /*   SkM* force */
 
-  if ( iforce == 3 || iforce == 4 )
+  if ( iforce == 3 || iforce == 4 || iforce == 5)
 
     { 
 
       sprintf( edf_name , "SKM*" ) ;
 
       t0 = -2645.0 ;
+
+      if(t0_ < 0. ) t0=t0_; 
 
       t1 =   410.0 ;
 
@@ -336,36 +345,50 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
 
       cc_edf->gg_n = cc_edf->gg;
 
-      if( iforce == 4 )
+      if( iforce == 4 || iforce == 5)
 
 	{
 	  
 	  if( isospin == 1 )
 	    {
 	      if(icub==0)
-	        cc_edf->gg = -340.0625 ;
+         	cc_edf->gg = -292.5417; // U236
+		// cc_edf->gg = -284.03; // Pu240
 	      else if(icub==1)
-         	cc_edf->gg = -292.5417;
+                cc_edf->gg = -325.90 ;
 	    }
 	  
 	  else
 	    {
 	      if(icub==0)
-	      cc_edf->gg = -265.2500 ; 
+	        cc_edf->gg = -225.3672; // U236
+		// cc_edf->gg = -226.225; // Pu240
 	      else if(icub==1)
-	      cc_edf->gg = -225.3672;
+                cc_edf->gg = -240.99 ;
 	    }
 	}
 
-      if(iforce==4 ){
+      if(iforce==4 || iforce==5){
         if(icub==0){
-  	        cc_edf->gg_p = -292.5417; 
-	        cc_edf->gg_n = -225.3672; 
+  	        cc_edf->gg_p = -292.5417; // U236
+	     // cc_edf->gg_p = -284.03; // Pu240
+	        cc_edf->gg_n = -225.3672; // U236
+	     // cc_edf->gg_n = -226.225; // Pu240
         }
         else if(icub==1){
           cc_edf->gg_p = -325.90 ;
           cc_edf->gg_n = -240.99 ;
         }
+      }
+
+      if(iforce==4){
+        cc_edf->rhoc = 0.0;
+        sprintf( edf_name , "SKM* Volume" ) ;
+      }
+
+      if(iforce==5){
+        cc_edf->rhoc = 0.5/.16;
+        sprintf( edf_name , "SKM* Mixed" ) ;
       }
 
     }
@@ -404,6 +427,8 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
 
       cc_edf->gg_n = cc_edf->gg;
 
+      cc_edf->rhoc = 0.;
+
     }
 
 
@@ -420,6 +445,8 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
       
       b0 = -684.524043779;
 
+      if(b0_ < 0. ) b0=b0_; 
+
       c0 = 827.26287841;
 
       a1 = 64.2474102072;
@@ -427,7 +454,6 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
       b1 = 119.862146959;
 
       c1 = -256.492703921;
-
       
       a2 = -96.8354102072; 
 
@@ -444,9 +470,7 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
       else if(icub==1)
       cc_edf->gg = -230.0; // tuned to reproduce the same pairing gap with spherical cutoff.
 
-      cc_edf->gg_p = cc_edf->gg;
-
-      cc_edf->gg_n = cc_edf->gg;
+      cc_edf->rhoc = 0.;
 
       cc_edf->Skyrme = 0;
                   
@@ -477,8 +501,7 @@ int dens_func_params( const int iforce , const int ihfb , const int isospin , Co
 
   }
 
-  fprintf( stdout, " ** Pairing mixing ** \n alpha = %f \n", alpha_pairing );
-//    fprintf( stdout, " ** Pairing parameters ** \n strength = %f \n" , cc_edf->gg ) ;
+    fprintf( stdout, " ** Pairing parameters ** \n strength = %f \n" , cc_edf->gg ) ;
 
   }
 
@@ -976,9 +999,9 @@ void add_to_u_re(const MPI_Comm comm , Densities * dens_p , Densities * dens_n ,
 
       gg_p = gg0_p / (1.0 - gg0_p*kk/mass_eff_p /8.0/((double) PI)/dx); 
       
-      gg_n_1 = (1./(pow(gg0_n,2.0)+1e-14)*gg0_n_1 - mass_eff_n_1/pow(mass_eff_n,2.0)/8./((double) PI)/dx*kk)* pow(gg_n, 2.0);
+      gg_n_1 = (1./(pow(gg0_n,2.0)+ 1e-14)*gg0_n_1 - mass_eff_n_1/pow(mass_eff_n,2.0)/8./((double) PI)/dx*kk)* pow(gg_n, 2.0);
 
-      gg_p_1 = (1./(pow(gg0_p,2.0)+1e-14)*gg0_p_1 - mass_eff_p_1/pow(mass_eff_p,2.0)/8./((double) PI)/dx*kk)* pow(gg_p, 2.0);
+      gg_p_1 = (1./(pow(gg0_p,2.0)+ 1e-14)*gg0_p_1 - mass_eff_p_1/pow(mass_eff_p,2.0)/8./((double) PI)/dx*kk)* pow(gg_p, 2.0);
 
       ure[i] += gg_n_1 * pow(cabs(dens_n->nu[ i - nstart ]),2.0) + gg_p_1 *pow(cabs(dens_p->nu[ i - nstart ]),2.0);
     }    
@@ -994,7 +1017,7 @@ void mix_potentials( double * pot_array , double * pot_array_old , const double 
 
   beta = 1. - alpha ;
 
-  for( i = ishift ; i < n ; i++ )
+  for( i = ishift ; i < n-5 ; i++ )
 
     {
 

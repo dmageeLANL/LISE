@@ -1,4 +1,3 @@
-// for license information, see the accompanying LICENSE file
 /*
 Axial_symmetry.c 
 This file contains util functions for axial-symmetry stuff. 

@@ -214,7 +214,7 @@ void external_so_m( double * v_ext , double * mass_eff , double * wx , double * 
 }
 
 // make filter for constraining field
-void make_filter(double *filter, Lattice_arrays *latt_coords, int nxyz)
+void make_filter(double *filter, Lattice_arrays *latt_coords, int nxyz, double zcm_pos)
 {
   int i;
   double xa, ya, za, rr;
@@ -225,7 +225,7 @@ void make_filter(double *filter, Lattice_arrays *latt_coords, int nxyz)
     {
       xa = latt_coords->xa[i];
       ya = latt_coords->ya[i];
-      za = latt_coords->za[i];
+      za = latt_coords->za[i]-zcm_pos;
       rr = sqrt(pow(xa,2.0)+pow(ya,2.0)+pow(za/beta,2.0));
       
       filter[i] = 1./(1. + exp( (rr - R0)/aa));

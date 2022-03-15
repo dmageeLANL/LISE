@@ -1,5 +1,3 @@
-// for license information, see the accompanying LICENSE file
-
 /*
 
 Functions to handle the computation of the energy 

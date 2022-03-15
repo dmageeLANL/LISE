@@ -1,5 +1,3 @@
-// for license information, see the accompanying LICENSE file
-
 /* 
 
 compute the deformation parameters beta and gamma

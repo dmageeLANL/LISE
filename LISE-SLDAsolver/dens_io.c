@@ -1,5 +1,3 @@
-// for license information, see the accompanying LICENSE file
-
 /* 
 
    Used to save and read back densities
@@ -506,7 +504,6 @@ int read_constr( char * fn , int nxyz, double * cc_lambda, const int iam , MPI_C
   return ( iflag );
 }
 
-int copy_lattice_arrays_l2s( void * bf1 , void * bf , size_t siz , const int nx1 , const int ny1 , const int nz1 , const int nx , const int ny , const int nz );
 
 int read_dens( char * fn , Densities * dens , const MPI_Comm comm , const int iam , const int nx , const int ny , const int nz , double * amu , const double dx , const double dy , const double dz , char * filename )
 

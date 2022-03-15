@@ -13,6 +13,10 @@ Variable definitions
 
 #include <fftw3.h>
 
+#define USE_ELPA
+
+#define assert_elpa_ok(x) assert(x == ELPA_OK)
+
 typedef struct 
 
 {
@@ -147,11 +151,11 @@ typedef struct
 
   double gg ;   /* pairing strength */
 
-  double gg_n ; /* pairing strength for neutrons */
-
-  double gg_p ; /* pairing strength for protons */
-
   double rhoc; /// for surface pairing
+
+  double gg_p; /* neutron pairing strength for Skyrme functionals. */
+  
+  double gg_n; /* neutron pairing strength for Skyrme functionals. */
 
   int iexcoul; // exchange couloumb
 
@@ -251,7 +255,7 @@ typedef struct
 
   double ecut;          // energy cut-off
 
-//  int icub; // 0 for spherical cutoff, 1 for cubic cutoff
+  int icub; // 0 for spherical cutoff, 1 for cubic cutoff
 
   int imass; // 0 for same proton neutron mass, 1 for different masses
 
@@ -277,6 +281,8 @@ typedef struct
 
   double rneck; // parameter of twisted potential
 
+  double zcm_pos; // position of center of mass for constraint calculation (along z)
+
   int p;   // pproc
 
   int q;    // qproc
@@ -285,10 +291,8 @@ typedef struct
 
   int nb;   // grid size
 
-  double ggn; // couplings constant for neutrons
+  double t0_skms;  // Param to chance t0 for skyrme functional.
 
-  double ggp;  // coupling constant for protons
- 
-  double alpha_pairing; // pairing mixing parameter: 0 for volume, 0.5 for mixed, 1.0 for surface (default is volume).
- 
+  double b0_seaLL1; // Param to change b0 for SeaLL1 functional.
+
 }metadata_t;

@@ -1,7 +1,4 @@
-// for license information, see the accompanying LICENSE file
-
-
-/* Main program */
+/* */
 
 #include <stdlib.h>
 
@@ -21,6 +18,10 @@
 
 #include <assert.h>
 
+#ifdef USE_ELPA
+#include <elpa.h>
+#endif
+
 int parse_input_file(char * file_name);
 
 int readcmd(int argc, char *argv[], int ip);
@@ -37,17 +38,7 @@ void make_ham( double complex * , double * , double * , double * , double comple
 
 void get_blcs_dscr( MPI_Comm , int , int , int , int , int , int , int * , int * , int * , int * , int * ) ;
 
-//Summit, use IBM's build of Netlib ScaLAPACK
-void pzheevd( char * , char * , int * , double complex * , int * , int * , int * , double * , double complex * , int * , int * , int * , double complex * , int *, double * , int * , int * , int * , int * );
-
-//Intel MKL
-//#include <mkl.h>
-//#include <mkl_scalapack.h>
-//#include <mkl_blacs.h>
-//#include <mkl_pblas.h>
-//void  pzheevd(const char* jobz, const char* uplo, const MKL_INT* n, const MKL_Complex16* a, const MKL_INT* ia, const MKL_INT* ja, const MKL_INT* desca, double* w, MKL_Complex16* z, const MKL_INT* iz, const MKL_INT* jz, const MKL_INT* descz, MKL_Complex16* work, const MKL_INT* lwork, double* rwork, const MKL_INT* lrwork, MKL_INT* iwork, const MKL_INT* liwork, MKL_INT* info);
-
-int dens_func_params( const int , const int , const int , Couplings * , const int , int icub, double alpha_pairing) ;
+int dens_func_params( const int , const int , const int , Couplings * , const int , int icub, double t0_, double b0_) ;
 
 void generate_ke_1d( double * , const int , const double , const int ) ;
 
@@ -60,8 +51,6 @@ void allocate_pots( Potentials * , const double , double * , const int , const i
 void allocate_dens( Densities * , const int , const int , const int ) ;
 
 void make_coordinates( const int , const int , const int , const int , const double , const double , const double , Lattice_arrays * ) ;
-
-void  match_lattices( Lattice_arrays *latt , Lattice_arrays * latt3 , const int nx , const int ny , const int nz , const int nx3 , const int ny3 , const int nz3 , FFtransf_vars * fftrans , const double Lc ) ;
 
 void external_so_m( double * , double * , double * , double * , double * , const double , Lattice_arrays * , const MPI_Comm , double complex * , double complex * , double complex * , const int , const int , const int ) ;
 
@@ -121,6 +110,8 @@ int print_wf( char * , MPI_Comm , double * , double complex * , const int , cons
 
 void bc_wr_mpi( char * fn , MPI_Comm com , int p , int q , int ip , int iq , int blk , int jstrt , int jstp , int jstrd , int nxyz , double complex * z ) ;
 
+void bc_wr_mpi_dt( char * fn , MPI_Comm com , int p_proc , int q_proc , int nb , int mb , int i_p , int i_q , int n_iq , int m_ip , int jstrt , int jstp , int jstrd , int n , double complex * z, double complex * buff ) ;
+
 int print_wf2( char * , MPI_Comm , double * , double complex * , const int , const int , const int , const int , const int , const int , const int , const int , const int , const int , const int , const int , const int , const double , double * , int icub) ;
 
 void array_rescale( double * , const int , const double ) ;
@@ -145,7 +136,9 @@ void axial_symmetry_densities(Densities *, Axial_symmetry *, int, Lattice_arrays
 
 int get_pts_tbc(int, int, int, double, double, Axial_symmetry * );
 
-void make_filter(double *filter, Lattice_arrays *latt_coords, int nxyz);
+double compute_particle_number( double complex * z , const int nxyz , const int ip , const MPI_Comm comm , const int m_ip , const int n_iq , const int i_p , const int i_q , const int mb , const int nb , const int p_proc , const int q_proc );
+
+void make_filter(double *filter, Lattice_arrays *latt_coords, int nxyz, double zcm_pos);
 
 metadata_t md =
   {
@@ -165,7 +158,7 @@ metadata_t md =
     1, // pairing
     0.25, // alpha_mixing
     200.0, // ecut
-//    1, // icub
+    1, // icub
     0, // imass
     0, // icm
     0, // irun
@@ -182,9 +175,9 @@ metadata_t md =
     8, // q
     40, //mb
     40, // nb
-    1e10, //ggp: above 1e9 value does not record
-    1e10, //ggn
-    0.0 // alpha_pairing: 0.0 for volume, 0.5 for mixed, 1.0 for surface
+    0.0, // zcm_pos: shift in the center of mass for constraint calc
+    -2645.0, // t0_skms
+    -684.524043779 // b0_seaLL1
   };
 
 
@@ -213,6 +206,10 @@ int main( int argc , char ** argv )
   MPI_Group group_comm ;
 
   MPI_Status istats ;
+
+#ifdef USE_ELPA
+  elpa_t eh ;
+#endif
 
   int tag1 = 120 , tag2 = 200 ;
 
@@ -282,9 +279,7 @@ int main( int argc , char ** argv )
 
   int iprint_wf = -1 ; /* -1 no wfs saved , 0 all wfs saved , 1 Z proton wfs saved, 2 N neutron wfs saved */
 
-  double ggp=1e10, ggn=1e10; // pairing coupling constants
-
-  double alpha_pairing=0.0; // pairing mixing parameter: 0 volume, 0.5 mixed, 1.0 volume.
+  int iprint_old = 0; /* If 1, Prints using Ionel's mpi function. */
 
   int m_broy , ishift , m_keep = 7 , it1 ;
 
@@ -314,8 +309,7 @@ int main( int argc , char ** argv )
 
   double complex * work , tw[ 2 ] ;
 
-  double * rwork , tw_[2] ;
-  //double complex * rwork , tw_[2] ;
+  double complex * rwork , tw_[2] ;
 
   double * occ , amu_n , * amu , const_amu=4.e-2,c_q2=1.e-5 ;
 
@@ -354,7 +348,48 @@ int main( int argc , char ** argv )
   int ierr;
 
   setbuf(stdout, NULL);
-  
+
+  static struct option long_options[] = {
+    {"nx", required_argument, 0,  0 },
+    {"ny", required_argument, 0,  0 },
+    {"nz", required_argument, 0,  0 },
+    {"Lx", required_argument, 0,  0 },
+    {"Ly", required_argument, 0,  0 },
+    {"Lz", required_argument, 0,  0 },
+    {"dx", required_argument, 0,  0 },
+    {"dy", required_argument, 0,  0 },
+    {"dz", required_argument, 0,  0 },
+    {"broyden", no_argument, 0, 'b' },
+    {"nocoulomb", no_argument , 0 , 0 },
+    {"niter" , required_argument , 0 , 'n' },
+    {"nopairing" , no_argument , 0 , 0 },
+    {"iext" , required_argument , 0 , 'e'},
+    {"alpha_mix" , required_argument , 0 , 'a'},
+    {"force", required_argument , 0 , 'f'},
+    {"nprot", required_argument , 0 , 'Z'},
+    {"nneut", required_argument , 0 , 'N'},
+    {"irun", required_argument , 0 , 'r'},
+    {"resc_dens", no_argument , 0 , 0 },
+    {"iprint_wf" , required_argument , 0 , 'p' },
+    {"ecut" , required_argument , 0 , 0 },
+    {"pproc" , required_argument , 0 , 0 },
+    {"qproc" , required_argument , 0 , 0 },
+    {"nb" , required_argument , 0 , 0 },
+    {"mb" , required_argument , 0 , 0 },
+    {"deformation" , required_argument , 0 , 0 },
+    {"hbo" , required_argument , 0 , 0 },
+    {"q0" , required_argument , 0 , 'q' },
+    {"v0" , required_argument , 0 , 'v' },
+    {"y3" , required_argument , 0 , 0 },
+    {"asym" , required_argument , 0 , 0 },
+    {"z0" , required_argument , 0 , 'z' },
+    {"y0" , required_argument , 0 , 'y' },
+    {"wneck" , required_argument , 0 , 0 },
+    {"rneck" , required_argument , 0 , 0 },
+    {0,         0,                 0,  0 }
+
+  };
+
   MPI_Init( &argc , &argv ) ;
 
   MPI_Comm_rank( MPI_COMM_WORLD, &ip ); 
@@ -445,6 +480,12 @@ int main( int argc , char ** argv )
   
   alpha_mix = md.alpha_mix;   
 
+  if(alpha_mix > 0){
+
+      alpha_mix = 0.0;
+
+  }
+
   e_cut = md.ecut;   // energy cutoff
 
   double e_cut_spherical = hbar2m * PI * PI / dx / dx;
@@ -469,6 +510,11 @@ int main( int argc , char ** argv )
   rneck = md.rneck;
   
   v0 = md.v0;
+
+  // For constraint calculation.
+  double zcm_pos = 0.0; // Default is no shift.
+  
+  zcm_pos = md.zcm_pos;
  
   // cyclic distribution in scalapack
   p_proc = md.p;   
@@ -478,14 +524,24 @@ int main( int argc , char ** argv )
   mb = md.mb;
   
   nb = md.nb;
-  
-  // pairing coupling constants
-  ggp = md.ggp;
- 
-  ggn = md.ggn;
 
-  // pairing mixing parameter.
-  alpha_pairing = md.alpha_pairing;
+  alpha_mix = 0.0;
+
+  if( niter < 4)
+    niter=3;
+
+  imin = 0;
+
+  iprint_wf = 0;
+
+  irun = 1;
+ 
+  if(ip==0){
+
+    printf("WARNING: THIS IS A SPECIAL VERSION OF THE SOLVER\n");
+    printf("This version perform only two iterations with alpha_mix = 0 and readjusts mu\n");
+
+  }
 
   if( nx < 0 || ny < 0 || nz < 0 || nprot < 0. || nneut < 0. )
 
@@ -560,6 +616,10 @@ int main( int argc , char ** argv )
   pots_old.nxyz = nxyz ;
 
   int isymm = md.isymm;
+
+  double t0_ = md.t0_skms;
+
+  double b0_ = md.b0_seaLL1;
 
   if( ip == 0 )
 
@@ -1028,13 +1088,13 @@ int main( int argc , char ** argv )
 
       for(i=0;i<nxyz;i++) filter[i] = 1.;
 
-      make_filter(filter, &lattice_coords, nxyz);
+      make_filter(filter, &lattice_coords, nxyz,zcm_pos);
 
       for(i=0;i<nxyz;i++)
 	  {
 	    double xa =lattice_coords.xa[i];
 	    double ya =lattice_coords.ya[i];
-	    double za =lattice_coords.za[i];
+	    double za =lattice_coords.za[i]-zcm_pos;
 
 	    	    
 	    constr[i] = za/10;  // dipole
@@ -1074,19 +1134,7 @@ int main( int argc , char ** argv )
 
 #endif
 
-  dens_func_params( iforce , ihfb , isospin , &cc_edf , ip ,icub, alpha_pairing) ; 
-
-  if(ggp<1e9){
-    cc_edf.gg_p=ggp;
-    if(isospin==1) cc_edf.gg=ggp;
-  }
-  if(ggn<1e9){
-    cc_edf.gg_n=ggn;
-    if(isospin==-1) cc_edf.gg=ggn;
-  }
-
-  if(ip == 0)
-    fprintf( stdout, " ** Pairing parameters ** \n proton strength = %f neutron strength = %f \n" , cc_edf.gg_p, cc_edf.gg_n ) ;
+  dens_func_params( iforce , ihfb , isospin , &cc_edf , ip ,icub, t0_, b0_) ; 
 
   /* need to set the grid here */
 
@@ -1272,13 +1320,59 @@ int main( int argc , char ** argv )
 	fprintf(file_out, "delta[%d] = %.12le %12leI\n", i, creal(pots.delta[i]), cimag(pots.delta[i]));
       fclose(file_out);
     }
-  
+
+
+  double save_mu[4],save_part;
+
+  save_mu[0]=*amu;
+
+  nwf = 2*nxyz;
+
+#ifdef USE_ELPA
+  if (elpa_init(20181112) != ELPA_OK) {
+    printf("ELPA version error");
+    return 1;
+  }
+  eh = elpa_allocate(&ierr);
+  assert_elpa_ok(ierr);
+
+  elpa_set(eh, "na", na, &ierr);
+  assert_elpa_ok(ierr);
+  elpa_set(eh, "nev", na, &ierr);
+  assert_elpa_ok(ierr);
+  elpa_set(eh, "local_nrows", m_ip, &ierr);
+  assert_elpa_ok(ierr);
+  elpa_set(eh, "local_ncols", n_iq, &ierr);
+  assert_elpa_ok(ierr);
+  elpa_set(eh, "nblk", mb, &ierr);
+  assert_elpa_ok(ierr);
+  elpa_set(eh, "mpi_comm_parent", MPI_Comm_c2f(gr_comm), &ierr);
+  assert_elpa_ok(ierr);
+  elpa_set(eh, "process_row", i_p, &ierr);
+  assert_elpa_ok(ierr);
+  elpa_set(eh, "process_col", i_q, &ierr);
+  assert_elpa_ok(ierr);
+  elpa_set(eh, "nvidia-gpu", 1, &ierr);
+  assert_elpa_ok(ierr);
+
+  assert_elpa_ok(elpa_setup(eh));
+
+  //elpa_set(eh, "complex_kernel", ELPA_2STAGE_COMPLEX_GPU, &ierr);
+  //assert_elpa_ok(ierr);
+  elpa_set(eh, "solver", ELPA_SOLVER_1STAGE, &ierr);
+  assert_elpa_ok(ierr);
+#endif
+
   for( it = 0 ; it < niter ; it++ )
 
     {
 
+      if( gr_ip == 0)
+	  fprintf(stdout,"\n Iteration number %d, mu%s=%12.6f (before constr ham) \n" , it + 1 , iso_label , * amu ) ;
+
       make_ham( ham , k1d_x , k1d_y , k1d_z , d1_x , d1_y , d1_z , &pots , dens, nx , ny , nz , m_ip , n_iq , i_p , i_q , mb , nb , p_proc , q_proc , dens->nstart , dens->nstop , gr_comm , & lattice_coords ) ;
 
+#ifndef USE_ELPA
       /* scalapack diag */
 
       lwork = -1 ; /* probe the system for information */
@@ -1289,10 +1383,7 @@ int main( int argc , char ** argv )
 
       assert( iwork = malloc( liwork * sizeof( int ) ) ) ;
 
-      // gcc
-      // pzheevd_( "V" , "L" , &na , ham , &Ione , &Ione , descr_h , lam , z_eig , &Ione , &Ione , descr_h , tw , &lwork , tw_ , &lrwork , iwork , &liwork , &info ) ;
-      // ibm xl
-      pzheevd( "V" , "L" , &na , ham , &Ione , &Ione , descr_h , lam , z_eig , &Ione , &Ione , descr_h , tw , &lwork , tw_ , &lrwork , iwork , &liwork , &info ) ;
+      pzheevd_( "V" , "L" , &na , ham , &Ione , &Ione , descr_h , lam , z_eig , &Ione , &Ione , descr_h , tw , &lwork , tw_ , &lrwork , iwork , &liwork , &info ) ;
 
       liwork = iwork[ 0 ] ;
 
@@ -1308,29 +1399,37 @@ int main( int argc , char ** argv )
 
       assert( rwork = malloc( lrwork * sizeof( double complex ) ) ) ;
 
-      // gcc
-      // pzheevd_( "V" , "L" , &na , ham , &Ione , &Ione , descr_h , lam , z_eig , &Ione , &Ione , descr_h , work , &lwork , rwork , &lrwork , iwork , &liwork , &info ) ;
-      // ibm xl
-      pzheevd( "V" , "L" , &na , ham , &Ione , &Ione , descr_h , lam , z_eig , &Ione , &Ione , descr_h , work , &lwork , rwork , &lrwork , iwork , &liwork , &info ) ;
+      pzheevd_( "V" , "L" , &na , ham , &Ione , &Ione , descr_h , lam , z_eig , &Ione , &Ione , descr_h , work , &lwork , rwork , &lrwork , iwork , &liwork , &info ) ;
 
       free( iwork ) ; free( work ) ; free( rwork ) ;
+
+#else
+
+      elpa_eigenvectors(eh, ham, lam, z_eig, &ierr);
+
+#endif
 
       for( ii = 0 ; ii < m_ip * n_iq ; ii++ )
 
 	*( z_eig + ii ) = sdxyz * *( z_eig + ii ) ;
 
+      /*
       compute_densities( lam , z_eig , nxyz , gr_ip , gr_comm , dens , m_ip , n_iq , i_p , i_q , mb , nb , p_proc , q_proc , nx , ny , nz , d1_x , d1_y , d1_z , k1d_x, k1d_y, k1d_z, e_cut , &nwf , occ , &fftransf_vars , &lattice_coords ,icub) ;
 
       if(isymm == 1)
 	axial_symmetry_densities(dens, &ax, nxyz, &lattice_coords, &fftransf_vars, gr_comm, gr_ip);
+      */
 
-      for( i = 0 ; i < nwf ; i++ )
 
-	occ[ i ] = occ[ i ] * dxyz ;
+      double num_particles=compute_particle_number( z_eig , nxyz , gr_ip , gr_comm , m_ip , n_iq , i_p , i_q , mb , nb , p_proc , q_proc )*dxyz;
+
+      /*
 
       xpart = rescale_dens( dens , nxyz , * npart , dxyz , irsc ) ;
 
       exch_nucl_dens( commw , ip , gr_ip , gr_np , idim , ex_array_p , ex_array_n ) ;
+
+      */
 
       sprintf( fn , "dens%s_%1d.cwr" , iso_label , it % 2 ) ;
 
@@ -1346,6 +1445,8 @@ int main( int argc , char ** argv )
 
 	}
 
+      /*
+
       update_potentials( icoul , isospin , &pots , &dens_p , &dens_n , dens , &cc_edf , e_cut , dens->nstart , dens->nstop , gr_comm , nx , ny , nz , hbar2m , d1_x , d1_y , d1_z , k1d_x , k1d_y , k1d_z , & lattice_coords , & fftransf_vars , nprot , dxyz , icub) ;
 
       if(gr_ip == 0)
@@ -1356,11 +1457,9 @@ int main( int argc , char ** argv )
 	    err += cabs(pots.delta[i] - delta_old[i]);
 	  
 	  fprintf(stdout, "err of pairing_gap%s: %.12le\n", iso_label, err);
-	}   
+	}
 
-      xxpart = *npart * xpart;
-
-      *amu -= const_amu*(xxpart-*npart);
+      */   
 
 #ifdef CONSTRCALC
 
@@ -1398,7 +1497,7 @@ int main( int argc , char ** argv )
 	for( i=0;i<nxyz;i++ ){
 	  if(lattice_coords.ya[i]==0.)
 	    fprintf( fd_dns , "%f %f %e\n" , lattice_coords.xa[i],lattice_coords.za[i] , dens_n.rho[i]+dens_p.rho[i]);
-	}
+ 	}
 
 	fclose(fd_dns);
       }
@@ -1436,6 +1535,16 @@ int main( int argc , char ** argv )
 
 	}
 
+
+      if(it<niter-2){
+        *amu = save_mu[it]+23.3333*(1.-num_particles/(*npart));
+	save_mu[it+1]= *amu;
+        save_part = num_particles;
+      }else if(it==niter-2){
+        double smu = (save_mu[it]-save_mu[it-1])/(num_particles-save_part);
+	* amu = save_mu[it-1]+smu*(*npart-save_part);
+      }
+
 #ifdef CONSTRCALC
 #ifdef CONSTR_Q0
       pots.lam2[ 0 ] = c_q2* ( dxyz*q2av( dens_p.rho , dens_n.rho , pots.v_constraint , nxyz , nprot , nneut ) - xconstr[0] ) + pots.lam[ 0 ];
@@ -1455,7 +1564,7 @@ int main( int argc , char ** argv )
 
 	  fprintf( file_out , "Iteration number %d, mu%s=%12.6f\n" , it + 1 , iso_label , * amu ) ;
 
-	  fprintf( file_out , "N%s = %13.9f\n" , iso_label , xpart * ( double ) * npart ) ;
+	  fprintf( file_out , "N%s = %13.9f\n" , iso_label , num_particles ) ;
 
 	  fprintf( file_out , "Nwf%s = %d\n" , iso_label , nwf ) ;
 
@@ -1474,7 +1583,7 @@ int main( int argc , char ** argv )
 
 	  fprintf(stdout,"\n Iteration number %d, mu%s=%12.6f\n" , it + 1 , iso_label , * amu ) ;
 
-	  fprintf(stdout,"N%s = %13.9f\n" , iso_label , xpart * ( double ) * npart ) ;
+	  fprintf(stdout,"N%s = %13.9f\n" , iso_label , num_particles ) ;
 
 	  fprintf(stdout,"Nwf%s = %d\n" , iso_label , nwf ) ;
 
@@ -1524,7 +1633,7 @@ int main( int argc , char ** argv )
 
     }
   
-  free( ham ) ; free( lam_old ) ;
+  free( lam_old ) ;
 
   free( k1d_x ) ; free( k1d_y ) ; free( k1d_z ) ;
 
@@ -1627,9 +1736,11 @@ int main( int argc , char ** argv )
       if ( iprint_wf == 0 )
 
 	{
-	  if ( gr_ip == 0 ) printf( "entering MPI only write\n" ) ;
+     	  if ( gr_ip == 0 ) printf( "entering MPI only write\n" ) ;
 	  bc_wr_mpi( fn , gr_comm , p_proc , q_proc , i_p , i_q , nb , 2*nxyz , 4*nxyz , 1 ,  4*nxyz , z_eig );
-
+	  if( iprint_old == 1){
+  		  bc_wr_mpi_dt( fn_ , gr_comm , p_proc , q_proc ,  nb , mb ,i_p , i_q , n_iq , m_ip, 2*nxyz , 4*nxyz , 1 ,  4*nxyz , z_eig, ham );
+	  }
 	}
 
       else
@@ -1642,7 +1753,10 @@ int main( int argc , char ** argv )
 
 	  else{
 	    if ( gr_ip == 0 ) printf( "entering MPI-only write\n" ) ;
-	    bc_wr_mpi( fn , gr_comm , p_proc , q_proc , i_p , i_q , nb , 2*nxyz , 4*nxyz , 1 ,  4*nxyz , z_eig );
+      	    bc_wr_mpi( fn , gr_comm , p_proc , q_proc , i_p , i_q , nb , 2*nxyz , 4*nxyz , 1 ,  4*nxyz , z_eig );
+	    if( iprint_old == 1){
+  		  bc_wr_mpi_dt( fn_ , gr_comm , p_proc , q_proc ,  nb , mb ,i_p , i_q , n_iq , m_ip, 2*nxyz , 4*nxyz , 1 ,  4*nxyz , z_eig, ham );
+	    }
 	  }
 
 	}
@@ -1656,6 +1770,9 @@ int main( int argc , char ** argv )
 	  else{
 	    if ( gr_ip == 0 ) printf( "entering MPI-only write\n" ) ;
 	    bc_wr_mpi( fn , gr_comm , p_proc , q_proc , i_p , i_q , nb , 2*nxyz , 4*nxyz , 1 ,  4*nxyz , z_eig );
+	    if( iprint_old == 1){
+		bc_wr_mpi_dt( fn_ , gr_comm , p_proc , q_proc , mb , nb , i_p , i_q , m_ip , n_iq, 2*nxyz , 4*nxyz , 1 ,  4*nxyz , z_eig , ham);
+	    }
 	  }
 
 	}
@@ -1674,8 +1791,8 @@ int main( int argc , char ** argv )
 
 	  printf( "wave functions not saved, iprint=%d\n" , iprint_wf ) ;
 
-
-
+// Freeing ham after writing.
+  free( ham ) ; 
 
   // save positive qpe
   sprintf( fn , "qpe%s.cwr" , iso_label ) ;
@@ -1694,6 +1811,12 @@ int main( int argc , char ** argv )
   free( z_eig ) ;
 
   free( lam ) ; free( occ ) ;
+
+
+#ifdef USE_ELPA
+  elpa_deallocate(eh, &ierr);
+  elpa_uninit(&ierr);
+#endif
 
   destroy_mpi_groups( &group_comm , &gr_comm ) ;
 
@@ -1853,8 +1976,8 @@ int parse_input_file(char * file_name)
 	else if (strcmp (tag,"ecut") == 0)
 	  sscanf (s,"%s %lf %*s",tag,&md.ecut);
 
-//	else if (strcmp (tag,"icub") == 0)
-//	  sscanf (s,"%s %d %*s",tag,&md.icub);
+	else if (strcmp (tag,"icub") == 0)
+	  sscanf (s,"%s %d %*s",tag,&md.icub);
 
 	else if (strcmp (tag,"imass") == 0)
 	  sscanf (s,"%s %d %*s",tag,&md.imass);
@@ -1900,15 +2023,15 @@ int parse_input_file(char * file_name)
 	
         else if (strcmp (tag,"nb") == 0)
 	  sscanf (s,"%s %d %*s",tag,&md.nb);
-	
-        else if (strcmp (tag,"ggp") == 0)
-	  sscanf (s,"%s %lf %*s",tag,&md.ggp);
-	
-        else if (strcmp (tag,"ggn") == 0)
-	  sscanf (s,"%s %lf %*s",tag,&md.ggn);
 
-        else if (strcmp (tag,"alpha_pairing") == 0)
-	  sscanf (s,"%s %lf %*s",tag,&md.alpha_pairing);
+        else if (strcmp (tag,"zcm_pos") == 0)
+	  sscanf (s,"%s %d %*s",tag,&md.zcm_pos);
+	
+	else if (strcmp (tag,"t0_skms") == 0)
+	  sscanf (s,"%s %lf %*s",tag,&md.t0_skms);
+
+	else if (strcmp (tag,"b0_seaLL1") == 0)
+	  sscanf (s,"%s %lf %*s",tag,&md.b0_seaLL1);
 
     }
     

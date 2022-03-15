@@ -1,5 +1,3 @@
-// for license information, see the accompanying LICENSE file
-
 /*
 
 Translation of the fortran subroutine to create two groups

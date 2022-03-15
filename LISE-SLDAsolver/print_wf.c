@@ -1,5 +1,3 @@
-// for license information, see the accompanying LICENSE file
-
 /* used to print the wave functions; will be replaced in the near future */
 
 #include <stdlib.h>

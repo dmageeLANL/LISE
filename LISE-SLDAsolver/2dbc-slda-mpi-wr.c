@@ -1,4 +1,3 @@
-// for license information, see the accompanying LICENSE file
 //
 // kenneth.roche@pnl.gov ; k8r@uw.edu
 // initial version ... rochekj@ornl.gov 
@@ -287,4 +286,103 @@ void bc_wr_mpi( char * fn , MPI_Comm com , int p , int q , int ip , int iq , int
   MPI_Barrier(com);
 
   free( comg ) ; free( g ) ; free( iamg ) ; free( nq_grp ) ; free( nv_grp ) ; free( ranks ) ;
+}
+
+void bc_wr_mpi_dt( char * fn , MPI_Comm com , int p_proc , int q_proc , int nb , int mb , int i_p , int i_q , int n_iq , int m_ip , int jstrt , int jstp , int jstrd , int n , double complex * z, double complex * buff ){
+
+  int i,j,ij;
+  int li, lj, kk, gi, gj;
+  int * disp;
+  int * blockDim;
+
+  MPI_Datatype filetype;
+  MPI_File fh;
+  MPI_Status status;
+
+  int ip,np;
+
+  MPI_Comm_size( com, &np );
+  MPI_Comm_rank( com , &ip ) ;
+  if(ip == 0)
+    if ( ( i = unlink( ( const char * ) fn ) ) != 0 ) fprintf( stderr , "Cannot unlink() FILE %s\n" , fn ) ;
+
+
+  int ij_last = -2;
+  int idx = 0;
+  int jindx = -1;
+  int nblocks = 0;
+  for(j=jstrt; j<jstp; j+=jstrd){
+    jindx++;
+
+    for(lj=0; lj<n_iq; lj++){
+      int gj = i_q * nb + (lj / nb) * q_proc * nb + lj % nb;
+      if(gj != j ) continue;
+      for(li=0; li<m_ip; li++){
+	int gi = i_p * mb + ( li / mb ) * p_proc * mb + li % mb ;
+	kk = lj * m_ip + li;
+	buff[idx++] = z[ kk ];
+	ij = jindx*n+gi;
+	if(ij!=ij_last+1){
+	  nblocks++;
+	}
+	ij_last = ij;
+      }
+    }
+  }
+
+  if(nblocks == 0)
+    printf("process %d will not write",ip);
+
+  int nblocks1 = nblocks;
+
+  disp = malloc( nblocks * sizeof(int));
+  blockDim = malloc(nblocks*sizeof(int));
+
+  nblocks = 0;
+  ij_last = -2;
+  jindx=-1;
+  int idx1 = 0;
+  for(j=jstrt; j<jstp; j+=jstrd){
+    jindx++;
+
+    for(lj=0; lj<n_iq; lj++){
+      int gj = i_q * nb + (lj / nb) * q_proc * nb + lj % nb;
+      if(gj != j ) continue;
+      for(li=0; li<m_ip; li++){
+	int gi = i_p * mb + ( li / mb ) * p_proc * mb + li % mb ;
+	idx1++;
+	ij = jindx*n+gi;
+	if(ij!=ij_last+1){
+	  disp[nblocks]=ij;
+	  blockDim[nblocks++]=1;
+	}else{
+	  blockDim[nblocks-1]++;
+	}
+	ij_last = ij;
+      }
+    }
+  }
+
+  if(idx1!=idx)
+    printf("** id %d: missmatch dimensions %d %d\n",ip,idx1,idx);
+
+  if(nblocks!=nblocks1)
+    printf("%d: dimension missmatch: %d %d\n",ip,nblocks,nblocks1);
+
+  MPI_Type_indexed(nblocks, blockDim,disp, MPI_DOUBLE_COMPLEX, &filetype);
+  MPI_Type_commit(&filetype);
+
+  MPI_File_open(com,fn,MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
+
+  int err = MPI_File_set_view(fh, (MPI_Offset) 0 , MPI_DOUBLE_COMPLEX, filetype, "native", MPI_INFO_NULL );
+
+  MPI_File_write_all(fh, (void *)buff , idx, MPI_DOUBLE_COMPLEX, &status );
+  MPI_Barrier(com);
+  MPI_File_close(&fh);
+
+  MPI_Type_free(&filetype);
+  free(blockDim);
+  free(disp);
+  return;
+
 }

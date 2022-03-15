@@ -1,5 +1,3 @@
-// for license information, see the accompanying LICENSE file
-
 /* kenneth.roche@pnl.gov */
 
 #include <assert.h>

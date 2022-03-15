@@ -1,8 +1,6 @@
-// for license information, see the accompanying LICENSE file
-
 /* 
 
-   Used to save and read back potentials
+   Used to save and read back densities
 
 */
 
@@ -48,9 +46,7 @@ int write_pots( char * fn , double * pot_arrays , const int nx , const int ny , 
 
   nxyz = nx * ny * nz ;
 
-  if ( ( i = unlink( ( const char * ) fn ) ) != 0 )
-	
-    fprintf( stderr , "Cannot unlink() FILE %s\n" , fn ) ;
+  // if ( ( i = unlink( ( const char * ) fn ) ) != 0 ) fprintf( stderr , "Cannot unlink() FILE %s\n" , fn ) ;
  
   if ( ( fd = open( fn , O_CREAT | O_WRONLY , fd_mode ) ) == -1 ) 
 	

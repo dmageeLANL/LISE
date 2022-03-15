@@ -1,4 +1,5 @@
-// for license information, see the accompanying LICENSE file
+/* 
+ */
 
 #include "vars_nuclear.h"
 

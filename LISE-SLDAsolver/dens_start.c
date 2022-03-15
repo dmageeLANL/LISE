@@ -1,5 +1,3 @@
-// for license information, see the accompanying LICENSE file
-
 #include <stdlib.h>
 
 #include <stdio.h>
