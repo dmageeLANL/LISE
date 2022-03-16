@@ -29,6 +29,7 @@ OBJS = broyden_min.o print_wf.o deform.o \
 $(info $(LAPACK_LIBS) $(ELPA_ROOT))
 
 all: $(EXE)
+	cp $(EXE) $(LISE_BIN_DIR)
 
 2dbc-slda-mpi-wr.o: 2dbc-slda-mpi-wr.c
 	$(COMP)  -c ${MPI_INCLUDE} 2dbc-slda-mpi-wr.c

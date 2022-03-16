@@ -67,26 +67,27 @@
 # OLCF_ESSL_ROOT                = /sw/summit/essl/6.1.0-2/essl/6.1
 # OLCF_NETLIB_SCALAPACK_ROOT    = /autofs/nccs-svm1_sw/summit/.swci/1-compute/opt/spack/20180914/linux-rhel7-ppc64le/xl-16.1.1-5/netlib-scalapack-2.0.2-xo4jhy4ydnx3qqmnegbzfrvz4am6q2v6
 # OLCF_FFTW_ROOT                = /autofs/nccs-svm1_sw/summit/.swci/1-compute/opt/spack/20180914/linux-rhel7-ppc64le/xl-16.1.1-5/fftw-3.3.8-azzdjlzx2j6dpqvzdir2nwvxypohyfq4
-# MPI_ROOT                      = /autofs/nccs-svm1_sw/summit/.swci/1-compute/opt/spack/20180914/linux-rhel7-ppc64le/xl-16.1.1-5/spectrum-mpi-10.3.1.2-20200121-p6nrnt6vtvkn356wqg6f74n6jspnpjd2
+# MPI_ROOT                      = /autofs/nccs-svm1_sw/summit/.swci/1-compute/opt/spack/20180914/linux-rhel7-ppc64le/xl-16.1.1-5/spectrum-mpi-10.3.1.2-20200121-p6nrnt6vtvkn356wqg6f74n6jspnpjd2CC=ddxlc
 # CUDA_TOOLKIT_ROOT_DIR		= /sw/summit/cuda/10.1.243
 #
 #
 
-CC=xlc
-CFLAGS=
-NCC= ${CUDA_TOOLKIT_ROOT_DIR}/bin/nvcc
-NCC_SM=--gpu-architecture=sm_70
-LA=LISE_LA_ESSL
-LISE_LA_INC=-I${OLCF_ESSL_ROOT}/include
-LISE_LA_LNK=-L${OLCF_NETLIB_SCALAPACK_ROOT}/lib -lscalapack -L${OLCF_ESSL_ROOT}/lib64 -lessl
-LISE_LAS_INC=-I${OLCF_ESSL_ROOT}/include
-LISE_LAS_LNK=-L${OLCF_ESSL_ROOT}/lib64 -lessl
-LISE_FFTW_INC=-I${OLCF_FFTW_ROOT}/include
-LISE_FFTW_LNK=-L${OLCF_FFTW_ROOT}/lib -lfftw3
-LISE_MPI_INC=-I${MPI_ROOT}/include
-LISE_MPI_LNK=-L${MPI_ROOT}/lib -lmpi_ibm -lm
-LISE_CUDA_INC=-I${CUDA_TOOLKIT_ROOT_DIR}/include
-LISE_CUDA_LNK=-L${CUDA_TOOLKIT_ROOT_DIR}/lib64 -lcufft -lcudart
+MPI_ROOT=${MPICH_DIR}
+
+CFLAGS=-fpic -w
+NCC=${CUDA_PATH}/bin/nvcc
+NCC_SM=--gpu-architecture=sm_80
+LA=LISE_LA_REF #LISE_LA_ESSL
+LISE_LA_INC= #-I${OLCF_ESSL_ROOT}/include
+LISE_LA_LNK= #-L${OLCF_NETLIB_SCALAPACK_ROOT}/lib -lscalapack -L${OLCF_ESSL_ROOT}/lib64 -lessl
+LISE_LAS_INC= #-I${OLCF_ESSL_ROOT}/include
+LISE_LAS_LNK= #-L${OLCF_ESSL_ROOT}/lib64 -lessl
+LISE_FFTW_INC=-I${FFTW_ROOT}/include -w
+LISE_FFTW_LNK=-L${FFTW_ROOT}/lib -lfftw3
+LISE_MPI_INC=-I$(MPI_ROOT)/include -w
+LISE_MPI_LNK= #-L$(MPI_ROOT) -lmpi -lmpi_ibm -lm
+LISE_CUDA_INC=-I${CUDA_PATH}/include -w
+LISE_CUDA_LNK=-L${CUDA_PATH}/lib64 -lcufft -lcudart
 
 LISE_VARS = CC NCC NCC_SM LA LISE_CUDA_INC LISE_CUDA_LNK LISE_FFTW_INC LISE_FFTW_LNK LISE_LAS_INC LISE_LAS_LNK LISE_MPI_INC LISE_MPI_LNK LISE_BIN_DIR LISE_LA_INC LISE_LA_LNK 
 export $(LISE_VARS)
